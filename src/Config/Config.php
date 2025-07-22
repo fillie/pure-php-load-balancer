@@ -21,6 +21,7 @@ class Config
             'backend.servers' => explode(',', $_ENV['DEFAULT_SERVERS'] ?? ''),
             'server.reload_async' => true,
             'server.max_wait_time' => 60,
+            'server.signals.enabled' => true,
         ]);
     }
 

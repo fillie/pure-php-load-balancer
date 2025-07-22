@@ -13,11 +13,13 @@ use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Http\Server;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 final class HttpServer implements ServerInterface
 {
     private readonly Server $server;
     private readonly bool $logEnabled;
+    private readonly bool $signalsEnabled;
     private bool $isBooted = false;
 
     public function __construct(
@@ -32,6 +34,7 @@ final class HttpServer implements ServerInterface
         
         $this->server = $server ?? new Server($host, $port);
         $this->logEnabled = $this->config->bool('logging.enabled', true);
+        $this->signalsEnabled = $this->config->bool('server.signals.enabled', true);
     }
 
     private function boot(): void
@@ -42,25 +45,33 @@ final class HttpServer implements ServerInterface
 
         $this->configureServer();
         $this->server->on('request', [$this, 'handleRequest']);
-        $this->setupSignalHandlers();
+        $this->setupEventHandlers();
         
         $this->isBooted = true;
     }
 
+    /**
+     * Handle incoming HTTP request and route to backend server
+     * 
+     * @param Request $req
+     * @param Response $res
+     * @return void
+     */
     public function handleRequest(Request $req, Response $res): void
     {
         $requestMeta = RequestMeta::fromSwooleRequest($req);
-        $jsonResponse = JsonResponse::create($res);
+        $jsonResponse = new JsonResponse($res);
+        $timestamp = date('c');
         
         try {
             $targetServer = $this->loadBalancer->getNextServer();
             $this->logRequest($requestMeta, $targetServer);
             
-            // Build unified response payload
+            /** @var array{success: true, message: string, timestamp: string, target_server: string, data: array{path: string, method: string, client_ip: string}} $payload */
             $payload = [
                 'success' => true,
                 'message' => 'Load balancer is working',
-                'timestamp' => date('c'),
+                'timestamp' => $timestamp,
                 'target_server' => $targetServer,
                 'data' => [
                     'path' => $requestMeta->path,
@@ -73,21 +84,24 @@ final class HttpServer implements ServerInterface
         } catch (NoHealthyServersException $e) {
             $this->logError($requestMeta, $e);
             
+            /** @var array{success: false, error: string, timestamp: string, data: array{request: array}} $payload */
             $payload = [
                 'success' => false,
                 'error' => $e->getMessage(),
-                'timestamp' => date('c'),
+                'timestamp' => $timestamp,
+                'data' => ['request' => $requestMeta->toArray()]
             ];
             
             $jsonResponse->send($payload, 503);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logError($requestMeta, $e);
             
+            /** @var array{success: false, error: string, timestamp: string, data: array{request: array}} $payload */
             $payload = [
                 'success' => false,
                 'error' => 'Internal server error',
-                'timestamp' => date('c'),
-                'context' => ['request' => $requestMeta->toArray()]
+                'timestamp' => $timestamp,
+                'data' => ['request' => $requestMeta->toArray()]
             ];
             
             $jsonResponse->send($payload, 500);
@@ -139,7 +153,7 @@ final class HttpServer implements ServerInterface
         ]);
     }
 
-    private function logError(RequestMeta $requestMeta, \Throwable $exception): void
+    private function logError(RequestMeta $requestMeta, Throwable $exception): void
     {
         if (!$this->logEnabled) {
             return;
@@ -156,29 +170,24 @@ final class HttpServer implements ServerInterface
     }
 
 
-    private function setupSignalHandlers(): void
+    private function setupEventHandlers(): void
     {
-        if (!extension_loaded('pcntl')) {
+        if (!$this->signalsEnabled) {
             return;
         }
 
-        // Enable async signals for proper handling
-        pcntl_async_signals(true);
-        
-        pcntl_signal(SIGTERM, [$this, 'handleShutdownSignal']);
-        pcntl_signal(SIGINT, [$this, 'handleShutdownSignal']);
-        pcntl_signal(SIGHUP, [$this, 'handleReloadSignal']);
+        // Use OpenSwoole native event handlers for proper async handling
+        $this->server->on('shutdown', [$this, 'handleShutdown']);
+        $this->server->on('workerStop', [$this, 'handleWorkerStop']);
     }
 
-    public function handleShutdownSignal(int $signal): void
+    public function handleShutdown(): void
     {
-        $this->logger->info('Received shutdown signal {signal}', ['signal' => $signal]);
-        $this->stop();
+        $this->logger->info('Server shutdown initiated');
     }
 
-    public function handleReloadSignal(int $signal): void
+    public function handleWorkerStop(): void
     {
-        $this->logger->info('Received reload signal {signal}', ['signal' => $signal]);
-        $this->server->reload();
+        $this->logger->info('Worker stopping');
     }
 }
