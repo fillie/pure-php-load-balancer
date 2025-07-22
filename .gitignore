@@ -1,0 +1,18 @@
+# Dependencies
+/vendor/
+
+# Environment files
+.env
+
+# IDE files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+
+# Docker volumes
+docker/volumes/
+
+# PHPUnit cache
+.phpunit.result.cache

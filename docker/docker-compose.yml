@@ -1,0 +1,28 @@
+services:
+  swoole:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "9501:9501"
+    volumes:
+      - ../src:/app/src
+      - ../config:/app/config
+      - ../.env:/app/.env
+      - vendor-sync:/app/vendor
+  
+  test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ../composer.json:/app/composer.json
+      - ../phpunit.xml:/app/phpunit.xml
+      - ../.env.testing:/app/.env
+    command: composer test
+    profiles:
+      - test
+volumes:
+  vendor-sync:
