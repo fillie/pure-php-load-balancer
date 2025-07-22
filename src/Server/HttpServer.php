@@ -4,95 +4,181 @@ declare(strict_types=1);
 
 namespace App\Server;
 
+use App\Config\Config;
+use App\Exception\NoHealthyServersException;
+use App\Http\JsonResponse;
+use App\Http\RequestMeta;
 use App\LoadBalancer\LoadBalancerInterface;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Http\Server;
+use Psr\Log\LoggerInterface;
 
-class HttpServer implements ServerInterface
+final class HttpServer implements ServerInterface
 {
-    private Server $server;
-    private LoadBalancerInterface $loadBalancer;
+    private readonly Server $server;
+    private readonly bool $logEnabled;
+    private bool $isBooted = false;
 
     public function __construct(
-        LoadBalancerInterface $loadBalancer,
-        string $host = '0.0.0.0',
-        int $port = 9501,
+        private readonly LoadBalancerInterface $loadBalancer,
+        private readonly Config $config,
+        private readonly LoggerInterface $logger,
         ?Server $server = null
     ) {
+        // Use Config as single source of truth for host/port
+        $host = $this->config->string('server.host', '0.0.0.0');
+        $port = $this->config->int('server.port', 9501);
+        
         $this->server = $server ?? new Server($host, $port);
-        $this->loadBalancer = $loadBalancer;
-        
-        // Configure server based on environment
-        $serverConfig = [];
-        
-        // Enable hot reload for development only
-        if ($_ENV['APP_ENV'] === 'development') {
-            $serverConfig['reload_async'] = true;
-            $serverConfig['max_wait_time'] = 60;
+        $this->logEnabled = $this->config->bool('logging.enabled', true);
+    }
+
+    private function boot(): void
+    {
+        if ($this->isBooted) {
+            return;
         }
-        
-        if (!empty($serverConfig)) {
-            $this->server->set($serverConfig);
-        }
-        
+
+        $this->configureServer();
         $this->server->on('request', [$this, 'handleRequest']);
+        $this->setupSignalHandlers();
+        
+        $this->isBooted = true;
     }
 
     public function handleRequest(Request $req, Response $res): void
     {
-        $method = $req->server['request_method'] ?? 'GET';
-        $path = $req->server['request_uri'] ?? '/';
-        $clientIp = $req->server['remote_addr'] ?? 'unknown';
+        $requestMeta = RequestMeta::fromSwooleRequest($req);
+        $jsonResponse = JsonResponse::create($res);
         
         try {
             $targetServer = $this->loadBalancer->getNextServer();
+            $this->logRequest($requestMeta, $targetServer);
             
-            if (($_ENV['ENABLE_OUTPUT'] ?? 'true') === 'true') {
-                echo sprintf("[%s] %s %s %s -> %s\n", 
-                    date('Y-m-d H:i:s'), 
-                    $clientIp,
-                    $method, 
-                    $path, 
-                    $targetServer
-                );
-            }
-            
-            $res->header('Content-Type', 'application/json');
-            $res->end(json_encode([
+            // Build unified response payload
+            $payload = [
+                'success' => true,
                 'message' => 'Load balancer is working',
+                'timestamp' => date('c'),
                 'target_server' => $targetServer,
-                'timestamp' => date('H:i:s'),
-                'path' => $path,
-                'method' => $method
-            ]));
-        } catch (\Exception $e) {
-            if (($_ENV['ENABLE_OUTPUT'] ?? 'true') === 'true') {
-                echo sprintf("[%s] %s %s %s -> ERROR: %s\n", 
-                    date('Y-m-d H:i:s'), 
-                    $clientIp, 
-                    $method, 
-                    $path, 
-                    $e->getMessage()
-                );
-            }
+                'data' => [
+                    'path' => $requestMeta->path,
+                    'method' => $requestMeta->method,
+                    'client_ip' => $requestMeta->clientIp
+                ]
+            ];
             
-            $res->status(500);
-            $res->header('Content-Type', 'application/json');
-            $res->end(json_encode([
+            $jsonResponse->send($payload);
+        } catch (NoHealthyServersException $e) {
+            $this->logError($requestMeta, $e);
+            
+            $payload = [
+                'success' => false,
                 'error' => $e->getMessage(),
-                'timestamp' => date('H:i:s')
-            ]));
+                'timestamp' => date('c'),
+            ];
+            
+            $jsonResponse->send($payload, 503);
+        } catch (\Throwable $e) {
+            $this->logError($requestMeta, $e);
+            
+            $payload = [
+                'success' => false,
+                'error' => 'Internal server error',
+                'timestamp' => date('c'),
+                'context' => ['request' => $requestMeta->toArray()]
+            ];
+            
+            $jsonResponse->send($payload, 500);
         }
     }
 
     public function start(): void
     {
+        $this->boot();
+        $this->logger->info('Starting HTTP server', [
+            'host' => $this->config->string('server.host'),
+            'port' => $this->config->int('server.port')
+        ]);
         $this->server->start();
     }
 
     public function stop(): void
     {
+        $this->logger->info('Stopping HTTP server');
         $this->server->shutdown();
+    }
+
+    private function configureServer(): void
+    {
+        if (!$this->config->isDevelopment()) {
+            return;
+        }
+
+        $serverConfig = [
+            'reload_async' => $this->config->bool('server.reload_async', true),
+            'max_wait_time' => $this->config->int('server.max_wait_time', 60),
+        ];
+
+        $this->server->set($serverConfig);
+    }
+
+    private function logRequest(RequestMeta $requestMeta, string $targetServer): void
+    {
+        if (!$this->logEnabled) {
+            return;
+        }
+
+        $this->logger->info('{request} -> {target}', [
+            'request' => (string)$requestMeta,
+            'target' => $targetServer,
+            'method' => $requestMeta->method,
+            'path' => $requestMeta->path,
+            'client_ip' => $requestMeta->clientIp
+        ]);
+    }
+
+    private function logError(RequestMeta $requestMeta, \Throwable $exception): void
+    {
+        if (!$this->logEnabled) {
+            return;
+        }
+
+        $this->logger->error('{request} -> ERROR: {message}', [
+            'request' => (string)$requestMeta,
+            'message' => $exception->getMessage(),
+            'exception' => $exception,
+            'method' => $requestMeta->method,
+            'path' => $requestMeta->path,
+            'client_ip' => $requestMeta->clientIp
+        ]);
+    }
+
+
+    private function setupSignalHandlers(): void
+    {
+        if (!extension_loaded('pcntl')) {
+            return;
+        }
+
+        // Enable async signals for proper handling
+        pcntl_async_signals(true);
+        
+        pcntl_signal(SIGTERM, [$this, 'handleShutdownSignal']);
+        pcntl_signal(SIGINT, [$this, 'handleShutdownSignal']);
+        pcntl_signal(SIGHUP, [$this, 'handleReloadSignal']);
+    }
+
+    public function handleShutdownSignal(int $signal): void
+    {
+        $this->logger->info('Received shutdown signal {signal}', ['signal' => $signal]);
+        $this->stop();
+    }
+
+    public function handleReloadSignal(int $signal): void
+    {
+        $this->logger->info('Received reload signal {signal}', ['signal' => $signal]);
+        $this->server->reload();
     }
 }

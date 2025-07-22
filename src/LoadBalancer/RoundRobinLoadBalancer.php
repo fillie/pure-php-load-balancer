@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\LoadBalancer;
 
+use App\Exception\NoHealthyServersException;
+
 class RoundRobinLoadBalancer implements LoadBalancerInterface
 {
     private array $_servers = [];
@@ -22,10 +24,13 @@ class RoundRobinLoadBalancer implements LoadBalancerInterface
         $this->servers = $servers;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getNextServer(): string
     {
         if (empty($this->_servers)) {
-            throw new \RuntimeException('No servers available');
+            throw new NoHealthyServersException();
         }
 
         $server = $this->_servers[$this->currentIndex];

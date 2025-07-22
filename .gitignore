@@ -16,3 +16,6 @@ docker/volumes/
 
 # PHPUnit cache
 .phpunit.result.cache
+
+# Claude
+CLAUDE.md

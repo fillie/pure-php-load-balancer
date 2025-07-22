@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Server;
 
+use App\Config\Config;
+use App\Exception\NoHealthyServersException;
 use App\LoadBalancer\LoadBalancerInterface;
 use App\Server\HttpServer;
 use PHPUnit\Framework\MockObject\Exception;
@@ -12,6 +14,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Http\Server;
+use Psr\Log\LoggerInterface;
 
 class HttpServerTest extends TestCase
 {
@@ -24,10 +27,36 @@ class HttpServerTest extends TestCase
     protected function setUp(): void
     {
         $this->loadBalancer = $this->createMock(LoadBalancerInterface::class);
+        $config = $this->createMock(Config::class);
+        $logger = $this->createMock(LoggerInterface::class);
         $mockServer = $this->createMock(Server::class);
         
-        // Create HttpServer with mocked server for testing
-        $this->httpServer = new HttpServer($this->loadBalancer, '127.0.0.1', 9999, $mockServer);
+        // Configure default mock behaviors
+        $config->method('bool')->willReturn(false); // Disable logging by default
+        $config->method('isDevelopment')->willReturn(false);
+        
+        // Configure config mock for the new constructor behavior
+        $config->method('string')->willReturnCallback(function ($key, $default = '') {
+            return match ($key) {
+                'server.host' => '127.0.0.1',
+                'server.port' => 9999,
+                default => $default
+            };
+        });
+        $config->method('int')->willReturnCallback(function ($key, $default = 0) {
+            return match ($key) {
+                'server.port' => 9999,
+                default => $default
+            };
+        });
+        
+        // Create HttpServer with mocked dependencies
+        $this->httpServer = new HttpServer(
+            $this->loadBalancer,
+            $config,
+            $logger,
+            $mockServer
+        );
     }
 
     public function testConstructorSetsCorrectConfiguration(): void
@@ -87,7 +116,7 @@ class HttpServerTest extends TestCase
         $this->loadBalancer
             ->expects($this->once())
             ->method('getNextServer')
-            ->willThrowException(new \RuntimeException('No servers available'));
+            ->willThrowException(new NoHealthyServersException());
 
         $request = $this->createMock(Request::class);
         $request->server = [
@@ -97,7 +126,7 @@ class HttpServerTest extends TestCase
         ];
 
         $response = $this->createMock(Response::class);
-        $response->expects($this->once())->method('status')->with(500);
+        $response->expects($this->once())->method('status')->with(503);
         $response->expects($this->once())->method('header')->with('Content-Type', 'application/json');
         $response->expects($this->once())->method('end');
 
@@ -126,14 +155,15 @@ class HttpServerTest extends TestCase
             ->method('end')
             ->with($this->callback(function ($json) {
                 $data = json_decode($json, true);
-                return isset($data['message']) && 
+                return isset($data['success']) &&
+                       isset($data['message']) && 
                        isset($data['target_server']) && 
                        isset($data['timestamp']) &&
-                       isset($data['path']) && 
-                       isset($data['method']) &&
+                       isset($data['data']) &&
+                       $data['success'] === true &&
                        $data['target_server'] === 'http://backend:3000' &&
-                       $data['path'] === '/api/users/123' &&
-                       $data['method'] === 'PUT';
+                       $data['data']['path'] === '/api/users/123' &&
+                       $data['data']['method'] === 'PUT';
             }));
 
         $this->httpServer->handleRequest($request, $response);
@@ -156,11 +186,13 @@ class HttpServerTest extends TestCase
         $response = $this->createMock(Response::class);
         $response->expects($this->once())
             ->method('end')
-            ->with($this->callback(function ($json) use ($errorMessage) {
+            ->with($this->callback(function ($json) {
                 $data = json_decode($json, true);
-                return isset($data['error']) && 
+                return isset($data['success']) &&
+                       isset($data['error']) && 
                        isset($data['timestamp']) &&
-                       $data['error'] === $errorMessage;
+                       $data['success'] === false &&
+                       $data['error'] === 'Internal server error';
             }));
 
         $this->httpServer->handleRequest($request, $response);

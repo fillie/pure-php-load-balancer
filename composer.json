@@ -1,13 +1,12 @@
 {
   "name": "frazerlillie/php-load-balancer",
   "version": "1.0.0",
-  "description": "A simple PHP load balancer using OpenSwoole and Symfony DI",
+  "description": "A simple PHP load balancer using OpenSwoole and PHP-DI",
   "require": {
     "php": ">=8.4",
-    "symfony/dependency-injection": "^7.0",
-    "symfony/config": "^7.0",
-    "symfony/yaml": "^7.0",
-    "vlucas/phpdotenv": "^5.6"
+    "php-di/php-di": "^7.0",
+    "vlucas/phpdotenv": "^5.6",
+    "psr/log": "^3.0"
   },
   "require-dev": {
     "openswoole/ide-helper": "^22.1",

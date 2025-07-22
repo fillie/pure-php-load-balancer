@@ -20,9 +20,7 @@ if (!$autoloadFound) {
     throw new RuntimeException('Could not find vendor/autoload.php. Run composer install.');
 }
 
-use Symfony\Component\Config\FileLocator;
-use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use DI\ContainerBuilder;
 use Dotenv\Dotenv;
 
 // Load environment variables
@@ -31,13 +29,13 @@ if (file_exists(__DIR__ . '/../.env')) {
     $dotenv->load();
 }
 
-function createContainer(): ContainerBuilder
+function createContainer(): \Psr\Container\ContainerInterface
 {
-    $container = new ContainerBuilder();
-    $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../config'));
-    $loader->load('services.yaml');
+    $builder = new ContainerBuilder();
     
-    $container->compile();
+    // Load container definitions
+    $definitions = require __DIR__ . '/../config/container.php';
+    $builder->addDefinitions($definitions());
     
-    return $container;
+    return $builder->build();
 }

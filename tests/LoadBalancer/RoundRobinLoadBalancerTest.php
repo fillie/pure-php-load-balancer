@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\LoadBalancer;
 
+use App\Exception\NoHealthyServersException;
 use App\LoadBalancer\RoundRobinLoadBalancer;
 use PHPUnit\Framework\TestCase;
 
@@ -39,8 +40,8 @@ class RoundRobinLoadBalancerTest extends TestCase
     {
         $loadBalancer = new RoundRobinLoadBalancer();
         
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('No servers available');
+        $this->expectException(NoHealthyServersException::class);
+        $this->expectExceptionMessage('No healthy servers available');
         
         $loadBalancer->getNextServer();
     }

@@ -26,11 +26,24 @@ RUN curl -L https://github.com/watchexec/watchexec/releases/download/v1.23.0/wat
 # Set working directory
 WORKDIR /app
 
-# Copy everything
+# Copy composer files first for better Docker layer caching
+COPY composer.json ./
+COPY composer.lock* ./
+
+# Install dependencies
+RUN composer install --no-interaction --optimize-autoloader --no-dev --quiet
+
+# Copy the rest of the application
 COPY . .
 
-# Install all dependencies in one go
-RUN composer install --no-interaction --optimize-autoloader
+# Install dev dependencies if needed (for development)
+RUN composer install --no-interaction --optimize-autoloader --quiet
+
+# Create entrypoint script to ensure dependencies are installed
+RUN echo '#!/bin/bash\ncomposer install --no-interaction --optimize-autoloader --quiet\nexec "$@"' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Start with watchexec monitoring src directory with debounce
 CMD ["watchexec", "-r", "-w", "src", "-e", "php", "--debounce", "2000", "--", "php", "src/Server.php"]

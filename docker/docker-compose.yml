@@ -21,6 +21,7 @@ services:
       - ../composer.json:/app/composer.json
       - ../phpunit.xml:/app/phpunit.xml
       - ../.env.testing:/app/.env
+      - vendor-sync:/app/vendor
     command: composer test
     profiles:
       - test
