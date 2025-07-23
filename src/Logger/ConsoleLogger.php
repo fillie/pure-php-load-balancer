@@ -11,8 +11,8 @@ use Stringable;
 class ConsoleLogger extends AbstractLogger
 {
     public function __construct(
-        private bool $enabled = true,
-        private string $minLevel = LogLevel::INFO
+        private readonly bool $enabled = true,
+        private readonly string $minLevel = LogLevel::INFO
     ) {
     }
 

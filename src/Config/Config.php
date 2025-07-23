@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Config;
 
-class Config
+readonly class Config
 {
     public function __construct(private array $config = [])
     {
-        $this->config = $config;
     }
 
     public static function fromEnv(): self
@@ -19,9 +18,9 @@ class Config
             'server.host' => $_ENV['SERVER_HOST'] ?? '0.0.0.0',
             'server.port' => (int)($_ENV['SERVER_PORT'] ?? 9501),
             'backend.servers' => explode(',', $_ENV['DEFAULT_SERVERS'] ?? ''),
-            'server.reload_async' => true,
-            'server.max_wait_time' => 60,
-            'server.signals.enabled' => true,
+            'server.lifecycle_handlers.enabled' => true,
+            'server.settings.reload_async' => true,
+            'server.settings.max_wait_time' => 60,
         ]);
     }
 

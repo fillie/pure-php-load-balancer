@@ -114,8 +114,8 @@ class ConfigTest extends TestCase
         $this->assertEquals('127.0.0.1', $config->string('server.host'));
         $this->assertEquals(8080, $config->int('server.port'));
         $this->assertEquals(['server1', 'server2', 'server3'], $config->array('backend.servers'));
-        $this->assertTrue($config->bool('server.reload_async'));
-        $this->assertEquals(60, $config->int('server.max_wait_time'));
+        $this->assertTrue($config->bool('server.settings.reload_async'));
+        $this->assertEquals(60, $config->int('server.settings.max_wait_time'));
         
         // Clean up
         unset($_ENV['APP_ENV'], $_ENV['ENABLE_OUTPUT'], $_ENV['SERVER_HOST'], 

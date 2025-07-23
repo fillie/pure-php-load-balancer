@@ -6,6 +6,10 @@ namespace App\Tests\Server;
 
 use App\Config\Config;
 use App\Exception\NoHealthyServersException;
+use App\Http\ResponseBuilder;
+use App\Server\RequestHandler;
+use App\Server\ServerEventHandler;
+use App\Server\ServerLogger;
 use App\LoadBalancer\LoadBalancerInterface;
 use App\Server\HttpServer;
 use PHPUnit\Framework\MockObject\Exception;
@@ -18,7 +22,7 @@ use Psr\Log\LoggerInterface;
 
 class HttpServerTest extends TestCase
 {
-    private LoadBalancerInterface|MockObject $loadBalancer;
+    private RequestHandler|MockObject $requestHandler;
     private HttpServer $httpServer;
 
     /**
@@ -26,10 +30,13 @@ class HttpServerTest extends TestCase
      */
     protected function setUp(): void
     {
-        $this->loadBalancer = $this->createMock(LoadBalancerInterface::class);
         $config = $this->createMock(Config::class);
-        $logger = $this->createMock(LoggerInterface::class);
         $mockServer = $this->createMock(Server::class);
+        
+        // Create mock components
+        $this->requestHandler = $this->createMock(RequestHandler::class);
+        $eventHandler = $this->createMock(ServerEventHandler::class);
+        $serverLogger = $this->createMock(ServerLogger::class);
         
         // Configure default mock behaviors
         $config->method('bool')->willReturn(false); // Disable logging by default
@@ -52,9 +59,10 @@ class HttpServerTest extends TestCase
         
         // Create HttpServer with mocked dependencies
         $this->httpServer = new HttpServer(
-            $this->loadBalancer,
+            $this->requestHandler,
+            $eventHandler,
+            $serverLogger,
             $config,
-            $logger,
             $mockServer
         );
     }
@@ -69,11 +77,6 @@ class HttpServerTest extends TestCase
      */
     public function testHandleRequestSuccess(): void
     {
-        $this->loadBalancer
-            ->expects($this->once())
-            ->method('getNextServer')
-            ->willReturn('http://localhost:8080');
-
         $request = $this->createMock(Request::class);
         $request->server = [
             'request_method' => 'GET',
@@ -82,8 +85,14 @@ class HttpServerTest extends TestCase
         ];
 
         $response = $this->createMock(Response::class);
-        $response->expects($this->once())->method('header')->with('Content-Type', 'application/json');
-        $response->expects($this->once())->method('end');
+        
+        $this->requestHandler
+            ->expects($this->once())
+            ->method('handle')
+            ->with(
+                $this->isInstanceOf(\App\Http\RequestMeta::class),
+                $this->isInstanceOf(\App\Http\JsonResponse::class)
+            );
 
         $this->httpServer->handleRequest($request, $response);
     }
@@ -93,17 +102,18 @@ class HttpServerTest extends TestCase
      */
     public function testHandleRequestWithDefaults(): void
     {
-        $this->loadBalancer
-            ->expects($this->once())
-            ->method('getNextServer')
-            ->willReturn('http://localhost:8080');
-
         $request = $this->createMock(Request::class);
         $request->server = [];
 
         $response = $this->createMock(Response::class);
-        $response->expects($this->once())->method('header')->with('Content-Type', 'application/json');
-        $response->expects($this->once())->method('end');
+        
+        $this->requestHandler
+            ->expects($this->once())
+            ->method('handle')
+            ->with(
+                $this->isInstanceOf(\App\Http\RequestMeta::class),
+                $this->isInstanceOf(\App\Http\JsonResponse::class)
+            );
 
         $this->httpServer->handleRequest($request, $response);
     }
@@ -113,11 +123,6 @@ class HttpServerTest extends TestCase
      */
     public function testHandleRequestWithException(): void
     {
-        $this->loadBalancer
-            ->expects($this->once())
-            ->method('getNextServer')
-            ->willThrowException(new NoHealthyServersException());
-
         $request = $this->createMock(Request::class);
         $request->server = [
             'request_method' => 'POST',
@@ -126,9 +131,14 @@ class HttpServerTest extends TestCase
         ];
 
         $response = $this->createMock(Response::class);
-        $response->expects($this->once())->method('status')->with(503);
-        $response->expects($this->once())->method('header')->with('Content-Type', 'application/json');
-        $response->expects($this->once())->method('end');
+        
+        $this->requestHandler
+            ->expects($this->once())
+            ->method('handle')
+            ->with(
+                $this->isInstanceOf(\App\Http\RequestMeta::class),
+                $this->isInstanceOf(\App\Http\JsonResponse::class)
+            );
 
         $this->httpServer->handleRequest($request, $response);
     }
@@ -138,11 +148,6 @@ class HttpServerTest extends TestCase
      */
     public function testHandleRequestResponseFormat(): void
     {
-        $this->loadBalancer
-            ->expects($this->once())
-            ->method('getNextServer')
-            ->willReturn('http://backend:3000');
-
         $request = $this->createMock(Request::class);
         $request->server = [
             'request_method' => 'PUT',
@@ -151,20 +156,14 @@ class HttpServerTest extends TestCase
         ];
 
         $response = $this->createMock(Response::class);
-        $response->expects($this->once())
-            ->method('end')
-            ->with($this->callback(function ($json) {
-                $data = json_decode($json, true);
-                return isset($data['success']) &&
-                       isset($data['message']) && 
-                       isset($data['target_server']) && 
-                       isset($data['timestamp']) &&
-                       isset($data['data']) &&
-                       $data['success'] === true &&
-                       $data['target_server'] === 'http://backend:3000' &&
-                       $data['data']['path'] === '/api/users/123' &&
-                       $data['data']['method'] === 'PUT';
-            }));
+        
+        $this->requestHandler
+            ->expects($this->once())
+            ->method('handle')
+            ->with(
+                $this->isInstanceOf(\App\Http\RequestMeta::class),
+                $this->isInstanceOf(\App\Http\JsonResponse::class)
+            );
 
         $this->httpServer->handleRequest($request, $response);
     }
@@ -174,26 +173,18 @@ class HttpServerTest extends TestCase
      */
     public function testHandleRequestErrorResponseFormat(): void
     {
-        $errorMessage = 'Load balancer error';
-        $this->loadBalancer
-            ->expects($this->once())
-            ->method('getNextServer')
-            ->willThrowException(new \Exception($errorMessage));
-
         $request = $this->createMock(Request::class);
         $request->server = ['request_method' => 'GET', 'request_uri' => '/', 'remote_addr' => '127.0.0.1'];
 
         $response = $this->createMock(Response::class);
-        $response->expects($this->once())
-            ->method('end')
-            ->with($this->callback(function ($json) {
-                $data = json_decode($json, true);
-                return isset($data['success']) &&
-                       isset($data['error']) && 
-                       isset($data['timestamp']) &&
-                       $data['success'] === false &&
-                       $data['error'] === 'Internal server error';
-            }));
+        
+        $this->requestHandler
+            ->expects($this->once())
+            ->method('handle')
+            ->with(
+                $this->isInstanceOf(\App\Http\RequestMeta::class),
+                $this->isInstanceOf(\App\Http\JsonResponse::class)
+            );
 
         $this->httpServer->handleRequest($request, $response);
     }

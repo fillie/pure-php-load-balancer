@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace App\Http;
 
 use JsonException;
+use JsonSerializable;
 use OpenSwoole\Http\Response;
 
-class JsonResponse
+readonly class JsonResponse
 {
     public function __construct(private Response $response)
     {
     }
 
-    public function send(array $data, int $status = 200, array $headers = []): void
+    public function send(array|JsonSerializable $data, int $status = 200, array $headers = []): void
     {
         $this->response->status($status);
         $this->response->header('Content-Type', 'application/json');
