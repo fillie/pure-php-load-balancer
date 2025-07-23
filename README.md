@@ -11,7 +11,7 @@ A high-performance PHP load balancer built with OpenSwoole and PHP-DI, featuring
 - **PSR-3 logging** - Structured logging with configurable levels
 - **Hot reload in development** - Automatic code reloading when files change
 - **Environment-based configuration** - Type-safe configuration management
-- **Comprehensive testing** - 72+ tests covering all components
+- **Comprehensive testing** - 118 tests covering all components
 - **Docker support** - Containerized development environment
 - **Graceful shutdown** - Proper signal handling (SIGTERM, SIGINT, SIGHUP)
 
@@ -69,12 +69,11 @@ DEFAULT_SERVERS=http://localhost:8080,http://localhost:8081,http://localhost:808
 
 ### Core Components
 
-- **`Config`** - Type-safe configuration management with environment variable parsing
-- **`LoadBalancerInterface`** with `RoundRobinLoadBalancer` - Pluggable load balancing algorithms
-- **`ServerInterface`** with `HttpServer`** - High-performance HTTP server using OpenSwoole
-- **`JsonResponse`** - Unified JSON response handling with proper error codes
-- **`RequestMeta`** - Immutable request metadata value object
-- **`ConsoleLogger`** - PSR-3 compliant logger with structured output
+- **Configuration Layer** (`Infrastructure/Config`) - Type-safe configuration management with environment variable parsing
+- **Domain Layer** (`Domain/LoadBalancer`) - Core business logic with `RoundRobinLoadBalancer` implementing pluggable algorithms
+- **Application Layer** (`Application/Http`) - HTTP server, request handlers, and response DTOs using OpenSwoole
+- **Support Layer** (`Support`) - Cross-cutting utilities like `ResponseBuilder` for standardized response creation
+- **Infrastructure Layer** (`Infrastructure`) - External concerns like logging (`ConsoleLogger`) and system clock
 
 ### Architecture Highlights
 
@@ -87,10 +86,12 @@ DEFAULT_SERVERS=http://localhost:8080,http://localhost:8081,http://localhost:808
 ### Request Flow
 
 1. OpenSwoole HTTP server receives request in `HttpServer::handleRequest()`
-2. Request metadata extracted into `RequestMeta` value object
-3. Load balancer selects next server using round-robin algorithm
-4. Response built with unified JSON structure via `JsonResponse`
-5. Structured logging with PSR-3 logger including request context
+2. Request metadata extracted into `RequestMeta` value object (`Application/Http/Request`)
+3. `RequestHandler` coordinates the request processing
+4. `RoundRobinLoadBalancer` selects next server using round-robin algorithm (`Domain/LoadBalancer`)
+5. `ResponseBuilder` creates standardized response DTOs (`Support`)
+6. `JsonResponse` handles the HTTP response formatting (`Application/Http/Response`)
+7. Structured logging with PSR-3 logger including request context (`Infrastructure/Logger`)
 
 ## API
 
@@ -165,12 +166,12 @@ The project has comprehensive test coverage:
 ```
 
 **Test Coverage:**
-- **72 tests** with 261+ assertions
-- **Config tests** - Environment parsing, type conversion, defaults
-- **Logger tests** - All PSR-3 levels, context interpolation, exception handling
-- **HTTP tests** - JsonResponse and RequestMeta with edge cases
-- **Server tests** - Request handling, exception scenarios, response formats
-- **Load balancer tests** - Round-robin algorithm, server management
+- **118 tests** with 454+ assertions
+- **Infrastructure tests** - Config, SystemClock, and ConsoleLogger with comprehensive edge cases
+- **Application tests** - HTTP server, request handlers, and response DTOs
+- **Domain tests** - Round-robin load balancer algorithm and server management
+- **Support tests** - ResponseBuilder for standardized response creation
+- Tests follow clean architecture with proper separation of concerns
 
 Tests use a separate `.env.testing` configuration with structured output.
 
