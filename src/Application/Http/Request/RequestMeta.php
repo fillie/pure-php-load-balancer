@@ -18,7 +18,7 @@ readonly class RequestMeta
     ) {
     }
 
-    public static function fromSwooleRequest(Request $request, ClockInterface $clock): self
+    public static function fromSwooleRequest(Request $request, ClockInterface $clock, ?IpResolver $ipResolver = null): self
     {
         $server = $request->server ?? [];
         $headers = $request->header ?? [];
@@ -26,10 +26,13 @@ readonly class RequestMeta
         // Extract or generate request ID for correlation tracking
         $requestId = $headers['x-request-id'] ?? self::generateRequestId();
         
+        // Resolve client IP considering reverse proxy headers
+        $clientIp = $ipResolver ? $ipResolver->resolveClientIp($request) : ($server['remote_addr'] ?? 'unknown');
+        
         return new self(
             method: $server['request_method'] ?? 'GET',
             path: $server['request_uri'] ?? '/',
-            clientIp: $server['remote_addr'] ?? 'unknown',
+            clientIp: $clientIp,
             timestamp: $clock->now()->format('Y-m-d H:i:s'),
             requestId: $requestId
         );
@@ -54,7 +57,7 @@ readonly class RequestMeta
     private static function generateRequestId(): string
     {
         return sprintf(
-            '%08x-%04x-%04x-%04x-%12x',
+            '%08x-%04x-%04x-%04x-%012x',
             mt_rand(0, 0xffffffff),
             mt_rand(0, 0xffff),
             mt_rand(0, 0xffff),

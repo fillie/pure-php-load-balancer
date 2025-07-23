@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Application\Http\Server;
 
+use App\Application\Http\Middleware\SecurityMiddleware;
+use App\Application\Http\Request\IpResolver;
 use App\Application\Http\Request\RequestMeta;
 use App\Application\Http\Response\JsonResponse;
 use App\Infrastructure\Clock\ClockInterface;
@@ -21,6 +23,8 @@ final class HttpServer implements ServerInterface
     private readonly bool $isDevelopment;
     private readonly string $host;
     private readonly int $port;
+    private readonly SecurityMiddleware $securityMiddleware;
+    private readonly IpResolver $ipResolver;
     private bool $isBooted = false;
 
     public function __construct(
@@ -29,7 +33,9 @@ final class HttpServer implements ServerInterface
         private readonly ServerLogger $logger,
         private readonly Config $config,
         private readonly ClockInterface $clock,
-        ?Server $server = null
+        ?Server $server = null,
+        ?SecurityMiddleware $securityMiddleware = null,
+        ?IpResolver $ipResolver = null
     ) {
         $host = $this->config->string('server.host', '0.0.0.0');
         $port = $this->config->int('server.port', 9501);
@@ -40,6 +46,8 @@ final class HttpServer implements ServerInterface
         $this->isDevelopment = $this->config->isDevelopment();
         $this->host = $host;
         $this->port = $port;
+        $this->securityMiddleware = $securityMiddleware ?? new SecurityMiddleware($this->config);
+        $this->ipResolver = $ipResolver ?? new IpResolver($this->config);
     }
 
     private function boot(): void
@@ -57,7 +65,17 @@ final class HttpServer implements ServerInterface
 
     public function handleRequest(Request $req, Response $res): void
     {
-        $requestMeta = RequestMeta::fromSwooleRequest($req, $this->clock);
+        // Resolve client IP first for security checks
+        $clientIp = $this->ipResolver->resolveClientIp($req);
+        
+        // Check security constraints before processing
+        $securityError = $this->securityMiddleware->validateRequest($req, $clientIp);
+        if ($securityError !== null) {
+            $this->securityMiddleware->sendSecurityError($res, $securityError);
+            return;
+        }
+        
+        $requestMeta = RequestMeta::fromSwooleRequest($req, $this->clock, $this->ipResolver);
         $jsonResponse = JsonResponse::create($res, $this->clock, $requestMeta->requestId);
         
         $this->requestHandler->handle($requestMeta, $jsonResponse);
@@ -85,12 +103,14 @@ final class HttpServer implements ServerInterface
             $serverConfig['reload_async'] = true;
         }
         
+        // Add security-related server settings
+        $maxRequestSize = $this->config->int('security.max_request_size', 1048576); // 1MB default
+        $serverConfig['package_max_length'] = $maxRequestSize;
+        
         if (!empty($serverConfig)) {
             $this->server->set($serverConfig);
         }
     }
-
-
 
     private function setupEventHandlers(): void
     {
