@@ -22,6 +22,7 @@ if (!$autoloadFound) {
 
 use DI\ContainerBuilder;
 use Dotenv\Dotenv;
+use Psr\Container\ContainerInterface;
 
 // Load environment variables
 if (file_exists(__DIR__ . '/../.env')) {
@@ -29,7 +30,7 @@ if (file_exists(__DIR__ . '/../.env')) {
     $dotenv->load();
 }
 
-function createContainer(): \Psr\Container\ContainerInterface
+function createContainer(): ContainerInterface
 {
     $builder = new ContainerBuilder();
     

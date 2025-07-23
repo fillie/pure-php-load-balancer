@@ -5,51 +5,77 @@ declare(strict_types=1);
 namespace App\Domain\LoadBalancer;
 
 use App\Domain\Exception\NoHealthyServersException;
+use OpenSwoole\Atomic\Long as AtomicLong;
+use OpenSwoole\Lock;
 
-class RoundRobinLoadBalancer implements LoadBalancerInterface
+final class RoundRobinLoadBalancer implements LoadBalancerInterface
 {
-    private array $servers;
-    private int $currentIndex = 0;
+    private const string ERROR_NO_HEALTHY_SERVERS = 'No healthy servers available';
 
-    public function __construct(array $servers = [])
+    /** @var array<int, string> */
+    public array $servers {
+        get {
+            return $this->servers;
+        }
+    }
+
+    private AtomicLong $counter;
+    private Lock $lock;
+
+    /**
+     * @param array<int, string> $servers
+     */
+    public function __construct(array $servers = [], ?AtomicLong $counter = null, ?Lock $lock = null)
     {
-        $this->servers = array_values($servers);
+        $this->servers = array_values(array_unique($servers));
+        $this->counter = $counter ?? new AtomicLong(0);
+        $this->lock = $lock ?? new Lock();
     }
 
     public function getNextServer(): string
     {
-        if (empty($this->servers)) {
-            throw new NoHealthyServersException('No healthy servers available');
+        $servers = $this->servers;
+        $count = count($servers);
+
+        if ($count === 0) {
+            throw new NoHealthyServersException(self::ERROR_NO_HEALTHY_SERVERS);
         }
 
-        $server = $this->servers[$this->currentIndex];
-        $this->currentIndex = ($this->currentIndex + 1) % count($this->servers);
+        $index = $this->counter->add(1) - 1;
+        $index = $index % $count;
 
-        return $server;
+        return $servers[$index];
     }
 
     public function addServer(string $server): void
     {
-        if (!in_array($server, $this->servers, true)) {
-            $this->servers[] = $server;
+        $this->lock->lock();
+        try {
+            if (!in_array($server, $this->servers, true)) {
+                $current = $this->servers;
+                $current[] = $server;
+                $this->servers = $current;
+            }
+        } finally {
+            $this->lock->unlock();
         }
     }
 
     public function removeServer(string $server): void
     {
-        $key = array_search($server, $this->servers, true);
-        if ($key !== false) {
-            array_splice($this->servers, $key, 1);
-            
-            // Reset index if it's beyond the new array bounds
-            if ($this->currentIndex >= count($this->servers)) {
-                $this->currentIndex = 0;
+        $this->lock->lock();
+        try {
+            $current = $this->servers;
+            $key = array_search($server, $current, true);
+            if ($key === false) {
+                return;
             }
+
+            unset($current[$key]);
+            $this->servers = array_values($current);
+        } finally {
+            $this->lock->unlock();
         }
     }
 
-    public function getServers(): array
-    {
-        return $this->servers;
-    }
 }

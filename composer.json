@@ -10,7 +10,8 @@
   },
   "require-dev": {
     "openswoole/ide-helper": "^22.1",
-    "phpunit/phpunit": "^11.0"
+    "phpunit/phpunit": "^11.0",
+    "friendsofphp/php-cs-fixer": "^3.64"
   },
   "config": {
     "platform": {
@@ -28,6 +29,8 @@
     }
   },
   "scripts": {
-    "test": "phpunit"
+    "test": "phpunit",
+    "cs-check": "php-cs-fixer fix --dry-run --diff",
+    "cs-fix": "php-cs-fixer fix"
   }
 }

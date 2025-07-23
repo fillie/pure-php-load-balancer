@@ -61,7 +61,6 @@ final class HttpServer implements ServerInterface
         
         $this->requestHandler->handle($requestMeta, $jsonResponse);
     }
-    
 
     public function start(): void
     {
