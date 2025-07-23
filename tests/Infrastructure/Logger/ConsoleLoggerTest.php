@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Logger;
 
+use App\Infrastructure\Clock\ClockInterface;
 use App\Infrastructure\Logger\ConsoleLogger;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LogLevel;
@@ -11,6 +12,14 @@ use Psr\Log\LogLevel;
 class ConsoleLoggerTest extends TestCase
 {
     private string $output = '';
+
+    private function createMockClock(string $timestamp = '2023-12-25 10:30:00'): ClockInterface
+    {
+        $clock = $this->createMock(ClockInterface::class);
+        $dateTime = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $timestamp);
+        $clock->method('now')->willReturn($dateTime);
+        return $clock;
+    }
 
     protected function setUp(): void
     {
@@ -37,16 +46,19 @@ class ConsoleLoggerTest extends TestCase
 
     public function testLoggerOutputsToConsole(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         $logger->info('Test message');
         
         $output = $this->getOutput();
         $this->assertStringContainsString('INFO: Test message', $output);
+        $this->assertStringContainsString('2023-12-25 10:30:00', $output);
     }
 
     public function testDisabledLoggerDoesNotOutput(): void
     {
-        $logger = new ConsoleLogger(false, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, false, LogLevel::DEBUG);
         $logger->info('Test message');
         
         $output = $this->getOutput();
@@ -55,7 +67,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testLogLevels(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         
         $logger->emergency('Emergency message');
         $output1 = $this->getOutput();
@@ -92,7 +105,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testLogLevelFiltering(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::ERROR);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::ERROR);
         
         // These should be logged (ERROR level and above)
         $logger->emergency('Emergency');
@@ -131,7 +145,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testContextInterpolation(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         
         $logger->info('Hello {name}, you are {age} years old', [
             'name' => 'John',
@@ -144,7 +159,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testContextInterpolationWithDifferentTypes(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         
         $logger->info('String: {str}, Int: {int}, Bool: {bool}, Array: {arr}, Object: {obj}', [
             'str' => 'test',
@@ -164,7 +180,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testExceptionLogging(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         $exception = new \RuntimeException('Test exception', 123);
         
         $logger->error('An error occurred', ['exception' => $exception]);
@@ -177,7 +194,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testExceptionWithStackTraceInDebugMode(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         $exception = new \RuntimeException('Test exception');
         
         $logger->debug('Debug with exception', ['exception' => $exception]);
@@ -190,7 +208,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testExceptionWithoutStackTraceInNonDebugMode(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         $exception = new \RuntimeException('Test exception');
         
         $logger->info('Info with exception', ['exception' => $exception]);
@@ -203,7 +222,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testTimestampFormat(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         
         $logger->info('Test message');
         
@@ -214,7 +234,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testStringableMessage(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         
         $stringable = new class implements \Stringable {
             public function __toString(): string
@@ -231,7 +252,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testContextWithExceptionKeyDoesNotInterpolate(): void
     {
-        $logger = new ConsoleLogger(true, LogLevel::DEBUG);
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, LogLevel::DEBUG);
         $exception = new \RuntimeException('Test exception');
         
         $logger->info('Message with {exception} placeholder', ['exception' => $exception]);
@@ -244,7 +266,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testDefaultConstructorValues(): void
     {
-        $logger = new ConsoleLogger();
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock);
         
         $logger->info('Test message');
         $output = $this->getOutput();
@@ -258,7 +281,8 @@ class ConsoleLoggerTest extends TestCase
 
     public function testUnknownLogLevel(): void
     {
-        $logger = new ConsoleLogger(true, 'unknown_level');
+        $clock = $this->createMockClock();
+        $logger = new ConsoleLogger($clock, true, 'unknown_level');
         
         $logger->info('Test message');
         $output = $this->getOutput();

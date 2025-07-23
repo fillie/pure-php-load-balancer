@@ -101,7 +101,7 @@ class ConfigTest extends TestCase
     public function testFromEnvCreatesConfigWithEnvironmentVariables(): void
     {
         // Set up environment variables
-        $_ENV['APP_ENV'] = 'test_environment';
+        $_ENV['APP_ENV'] = 'testing';
         $_ENV['ENABLE_OUTPUT'] = 'true';
         $_ENV['SERVER_HOST'] = '127.0.0.1';
         $_ENV['SERVER_PORT'] = '8080';
@@ -109,7 +109,7 @@ class ConfigTest extends TestCase
         
         $config = Config::fromEnv();
         
-        $this->assertEquals('test_environment', $config->string('app.env'));
+        $this->assertEquals('testing', $config->string('app.env'));
         $this->assertTrue($config->bool('logging.enabled'));
         $this->assertEquals('127.0.0.1', $config->string('server.host'));
         $this->assertEquals(8080, $config->int('server.port'));
@@ -134,7 +134,7 @@ class ConfigTest extends TestCase
         $this->assertTrue($config->bool('logging.enabled')); // default 'true' string evaluates to true
         $this->assertEquals('0.0.0.0', $config->string('server.host'));
         $this->assertEquals(9501, $config->int('server.port'));
-        $this->assertEquals([''], $config->array('backend.servers')); // empty string splits to ['']
+        $this->assertEquals([], $config->array('backend.servers')); // empty string should return empty array
         
         // Restore original environment
         $_ENV = $originalEnv;

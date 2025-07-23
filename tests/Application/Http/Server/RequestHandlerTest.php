@@ -43,7 +43,8 @@ class RequestHandlerTest extends TestCase
             'GET',
             '/api/test',
             '192.168.1.1',
-            '2025-01-01 12:00:00'
+            '2025-01-01 12:00:00',
+            'request-handler-test-789'
         );
     }
 

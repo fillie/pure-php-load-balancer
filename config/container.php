@@ -24,6 +24,7 @@ return function (): array {
         // Logger configuration
         LoggerInterface::class => DI\create(ConsoleLogger::class)
             ->constructor(
+                DI\get(ClockInterface::class),
                 DI\get('app.logging.enabled'),
                 DI\get('app.logging.level')
             ),
@@ -37,7 +38,10 @@ return function (): array {
         
         // Response Builder
         ResponseBuilder::class => DI\create(ResponseBuilder::class)
-            ->constructor(DI\get(ClockInterface::class)),
+            ->constructor(
+                DI\get(ClockInterface::class),
+                DI\get(Config::class)
+            ),
         
         // Server Logger
         ServerLogger::class => DI\create(ServerLogger::class)
@@ -64,7 +68,8 @@ return function (): array {
                 DI\get(RequestHandler::class),
                 DI\get(ServerEventHandler::class),
                 DI\get(ServerLogger::class),
-                DI\get(Config::class)
+                DI\get(Config::class),
+                DI\get(ClockInterface::class)
             ),
 
         // Parameters

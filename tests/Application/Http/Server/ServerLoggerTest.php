@@ -24,7 +24,8 @@ class ServerLoggerTest extends TestCase
             'GET',
             '/api/test',
             '192.168.1.1',
-            '2025-01-01 12:00:00'
+            '2025-01-01 12:00:00',
+            'server-log-test-123'
         );
     }
 
@@ -39,7 +40,7 @@ class ServerLoggerTest extends TestCase
             ->with(
                 '{request} -> {target}',
                 [
-                    'request' => '2025-01-01 12:00:00 192.168.1.1 GET /api/test',
+                    'request' => '[server-log-test-123] 2025-01-01 12:00:00 192.168.1.1 GET /api/test',
                     'target' => $targetServer,
                     'method' => 'GET',
                     'path' => '/api/test',
@@ -73,7 +74,7 @@ class ServerLoggerTest extends TestCase
             ->with(
                 '{request} -> ERROR: {message}',
                 [
-                    'request' => '2025-01-01 12:00:00 192.168.1.1 GET /api/test',
+                    'request' => '[server-log-test-123] 2025-01-01 12:00:00 192.168.1.1 GET /api/test',
                     'message' => 'Database connection failed',
                     'exception' => $exception,
                     'method' => 'GET',
@@ -166,7 +167,8 @@ class ServerLoggerTest extends TestCase
             'POST',
             '/api/users/create',
             '10.0.0.1',
-            '2025-01-02 08:30:15'
+            '2025-01-02 08:30:15',
+            'different-request-456'
         );
         
         $this->logger
@@ -175,7 +177,7 @@ class ServerLoggerTest extends TestCase
             ->with(
                 '{request} -> {target}',
                 [
-                    'request' => '2025-01-02 08:30:15 10.0.0.1 POST /api/users/create',
+                    'request' => '[different-request-456] 2025-01-02 08:30:15 10.0.0.1 POST /api/users/create',
                     'target' => 'http://backend:3000',
                     'method' => 'POST',
                     'path' => '/api/users/create',

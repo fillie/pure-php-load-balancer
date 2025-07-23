@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Http\Server;
 
+use App\Infrastructure\Clock\ClockInterface;
 use App\Infrastructure\Config\Config;
 use App\Domain\Exception\NoHealthyServersException;
 use App\Support\ResponseBuilder;
@@ -39,6 +40,7 @@ class HttpServerTest extends TestCase
         $this->requestHandler = $this->createMock(RequestHandler::class);
         $eventHandler = $this->createMock(ServerEventHandler::class);
         $serverLogger = $this->createMock(ServerLogger::class);
+        $clock = $this->createMock(ClockInterface::class);
         
         // Configure default mock behaviors
         $config->method('bool')->willReturn(false); // Disable logging by default
@@ -65,6 +67,7 @@ class HttpServerTest extends TestCase
             $eventHandler,
             $serverLogger,
             $config,
+            $clock,
             $mockServer
         );
     }

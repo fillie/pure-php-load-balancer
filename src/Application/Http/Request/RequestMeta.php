@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Http\Request;
 
+use App\Infrastructure\Clock\ClockInterface;
 use OpenSwoole\Http\Request;
 
 readonly class RequestMeta
@@ -12,19 +13,25 @@ readonly class RequestMeta
         public string $method,
         public string $path,
         public string $clientIp,
-        public string $timestamp
+        public string $timestamp,
+        public string $requestId
     ) {
     }
 
-    public static function fromSwooleRequest(Request $request): self
+    public static function fromSwooleRequest(Request $request, ClockInterface $clock): self
     {
         $server = $request->server ?? [];
+        $headers = $request->header ?? [];
+        
+        // Extract or generate request ID for correlation tracking
+        $requestId = $headers['x-request-id'] ?? self::generateRequestId();
         
         return new self(
             method: $server['request_method'] ?? 'GET',
             path: $server['request_uri'] ?? '/',
             clientIp: $server['remote_addr'] ?? 'unknown',
-            timestamp: date('Y-m-d H:i:s')
+            timestamp: $clock->now()->format('Y-m-d H:i:s'),
+            requestId: $requestId
         );
     }
 
@@ -34,12 +41,25 @@ readonly class RequestMeta
             'method' => $this->method,
             'path' => $this->path,
             'client_ip' => $this->clientIp,
-            'timestamp' => $this->timestamp
+            'timestamp' => $this->timestamp,
+            'request_id' => $this->requestId
         ];
     }
 
     public function __toString(): string
     {
-        return sprintf('%s %s %s %s', $this->timestamp, $this->clientIp, $this->method, $this->path);
+        return sprintf('[%s] %s %s %s %s', $this->requestId, $this->timestamp, $this->clientIp, $this->method, $this->path);
+    }
+
+    private static function generateRequestId(): string
+    {
+        return sprintf(
+            '%08x-%04x-%04x-%04x-%12x',
+            mt_rand(0, 0xffffffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0xffffffffffff)
+        );
     }
 }

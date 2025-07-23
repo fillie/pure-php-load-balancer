@@ -19,7 +19,8 @@ class SuccessResponseDtoTest extends TestCase
             'GET',
             '/api/test',
             '192.168.1.1',
-            '2025-01-01 12:00:00'
+            '2025-01-01 12:00:00',
+            'success-request-456'
         );
         
         $this->dto = new SuccessResponseDto(
@@ -44,6 +45,7 @@ class SuccessResponseDtoTest extends TestCase
             'success' => true,
             'message' => 'Load balancer is working',
             'timestamp' => '2025-01-01T12:00:00+00:00',
+            'request_id' => 'success-request-456',
             'target_server' => 'http://localhost:8080',
             'data' => [
                 'path' => '/api/test',

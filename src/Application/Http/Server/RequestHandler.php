@@ -59,7 +59,7 @@ readonly class RequestHandler
         JsonResponse $jsonResponse
     ): void {
         $this->logger->logError($requestMeta, $exception);
-        $response = $this->responseBuilder->buildInternalError($requestMeta);
+        $response = $this->responseBuilder->buildInternalError($requestMeta, $exception);
         $jsonResponse->send($response, 500);
     }
 }

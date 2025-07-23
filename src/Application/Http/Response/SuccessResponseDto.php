@@ -23,6 +23,7 @@ readonly class SuccessResponseDto implements JsonSerializable
             'success' => true,
             'message' => $this->message,
             'timestamp' => $this->timestamp,
+            'request_id' => $this->requestMeta->requestId,
             'target_server' => $this->targetServer,
             'data' => [
                 'path' => $this->requestMeta->path,

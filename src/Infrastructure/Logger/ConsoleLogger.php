@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Logger;
 
+use App\Infrastructure\Clock\ClockInterface;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LogLevel;
 use Stringable;
@@ -11,6 +12,7 @@ use Stringable;
 class ConsoleLogger extends AbstractLogger
 {
     public function __construct(
+        private readonly ClockInterface $clock,
         private readonly bool $enabled = true,
         private readonly string $minLevel = LogLevel::INFO
     ) {
@@ -22,7 +24,7 @@ class ConsoleLogger extends AbstractLogger
             return;
         }
 
-        $timestamp = date('Y-m-d H:i:s');
+        $timestamp = $this->clock->now()->format('Y-m-d H:i:s');
         $levelUpper = strtoupper($level);
         $formattedMessage = $this->interpolate($message, $context);
         

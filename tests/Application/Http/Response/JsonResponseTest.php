@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application\Http\Response;
 
 use App\Application\Http\Response\JsonResponse;
+use App\Infrastructure\Clock\ClockInterface;
 use OpenSwoole\Http\Response;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -12,12 +13,22 @@ use PHPUnit\Framework\TestCase;
 class JsonResponseTest extends TestCase
 {
     private Response|MockObject $mockResponse;
+    private ClockInterface|MockObject $mockClock;
     private JsonResponse $jsonResponse;
+
+    private function createMockClock(string $timestamp = '2023-12-25 10:30:00'): ClockInterface
+    {
+        $clock = $this->createMock(ClockInterface::class);
+        $dateTime = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $timestamp);
+        $clock->method('now')->willReturn($dateTime);
+        return $clock;
+    }
 
     protected function setUp(): void
     {
         $this->mockResponse = $this->createMock(Response::class);
-        $this->jsonResponse = new JsonResponse($this->mockResponse);
+        $this->mockClock = $this->createMockClock();
+        $this->jsonResponse = new JsonResponse($this->mockResponse, $this->mockClock);
     }
 
     public function testSendBasicResponse(): void
@@ -316,7 +327,8 @@ class JsonResponseTest extends TestCase
     public function testCreateStaticMethod(): void
     {
         $response = $this->createMock(Response::class);
-        $jsonResponse = JsonResponse::create($response);
+        $clock = $this->createMockClock();
+        $jsonResponse = JsonResponse::create($response, $clock);
         
         $this->assertInstanceOf(JsonResponse::class, $jsonResponse);
     }

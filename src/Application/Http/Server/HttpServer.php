@@ -6,6 +6,7 @@ namespace App\Application\Http\Server;
 
 use App\Application\Http\Request\RequestMeta;
 use App\Application\Http\Response\JsonResponse;
+use App\Infrastructure\Clock\ClockInterface;
 use App\Infrastructure\Config\Config;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
@@ -27,6 +28,7 @@ final class HttpServer implements ServerInterface
         private readonly ServerEventHandler $eventHandler,
         private readonly ServerLogger $logger,
         private readonly Config $config,
+        private readonly ClockInterface $clock,
         ?Server $server = null
     ) {
         $host = $this->config->string('server.host', '0.0.0.0');
@@ -55,8 +57,8 @@ final class HttpServer implements ServerInterface
 
     public function handleRequest(Request $req, Response $res): void
     {
-        $requestMeta = RequestMeta::fromSwooleRequest($req);
-        $jsonResponse = new JsonResponse($res);
+        $requestMeta = RequestMeta::fromSwooleRequest($req, $this->clock);
+        $jsonResponse = JsonResponse::create($res, $this->clock, $requestMeta->requestId);
         
         $this->requestHandler->handle($requestMeta, $jsonResponse);
     }

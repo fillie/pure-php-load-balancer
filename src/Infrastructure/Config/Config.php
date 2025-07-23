@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Config;
 
+use Symfony\Component\Config\Definition\Processor;
+
 readonly class Config
 {
     public function __construct(private array $config = [])
@@ -12,16 +14,52 @@ readonly class Config
 
     public static function fromEnv(): self
     {
-        return new self([
-            'app.env' => $_ENV['APP_ENV'] ?? 'production',
-            'logging.enabled' => self::parseBoolean($_ENV['ENABLE_OUTPUT'] ?? 'true'),
-            'server.host' => $_ENV['SERVER_HOST'] ?? '0.0.0.0',
-            'server.port' => (int)($_ENV['SERVER_PORT'] ?? 9501),
-            'backend.servers' => explode(',', $_ENV['DEFAULT_SERVERS'] ?? ''),
-            'server.lifecycle_handlers.enabled' => true,
-            'server.settings.reload_async' => true,
-            'server.settings.max_wait_time' => 60,
-        ]);
+        $env = $_ENV['APP_ENV'] ?? 'production';
+        
+        // Build raw configuration from environment variables
+        $rawConfig = [
+            'app' => [
+                'env' => $env,
+                'debug' => ConfigDefinition::parseBoolean($_ENV['APP_DEBUG'] ?? ($env === 'development' ? 'true' : 'false')),
+            ],
+            'logging' => [
+                'enabled' => ConfigDefinition::parseBoolean($_ENV['ENABLE_OUTPUT'] ?? 'true'),
+            ],
+            'server' => [
+                'host' => $_ENV['SERVER_HOST'] ?? '0.0.0.0',
+                'port' => (int)($_ENV['SERVER_PORT'] ?? 9501),
+                'lifecycle_handlers' => [
+                    'enabled' => true,
+                ],
+                'settings' => [
+                    'reload_async' => true,
+                    'max_wait_time' => 60,
+                ],
+            ],
+            'backend' => [
+                'servers' => ConfigDefinition::parseServerList($_ENV['DEFAULT_SERVERS'] ?? ''),
+            ],
+        ];
+
+        // Process and validate configuration using symfony/config
+        $processor = new Processor();
+        $configDefinition = new ConfigDefinition();
+        $processedConfig = $processor->processConfiguration($configDefinition, [$rawConfig]);
+
+        // Flatten the configuration for backward compatibility
+        $flatConfig = [
+            'app.env' => $processedConfig['app']['env'],
+            'app.debug' => $processedConfig['app']['debug'],
+            'logging.enabled' => $processedConfig['logging']['enabled'],
+            'server.host' => $processedConfig['server']['host'],
+            'server.port' => $processedConfig['server']['port'],
+            'backend.servers' => $processedConfig['backend']['servers'],
+            'server.lifecycle_handlers.enabled' => $processedConfig['server']['lifecycle_handlers']['enabled'],
+            'server.settings.reload_async' => $processedConfig['server']['settings']['reload_async'],
+            'server.settings.max_wait_time' => $processedConfig['server']['settings']['max_wait_time'],
+        ];
+
+        return new self($flatConfig);
     }
 
     public function get(string $key, mixed $default = null): mixed
@@ -59,8 +97,8 @@ readonly class Config
         return $this->string('app.env') === 'development';
     }
 
-    private static function parseBoolean(string $value): bool
+    public function isDebug(): bool
     {
-        return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+        return $this->bool('app.debug');
     }
 }

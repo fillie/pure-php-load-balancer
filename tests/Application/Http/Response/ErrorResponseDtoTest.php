@@ -20,7 +20,8 @@ class ErrorResponseDtoTest extends TestCase
             'POST',
             '/api/error',
             '10.0.0.1',
-            '2025-01-01 12:30:00'
+            '2025-01-01 12:30:00',
+            'error-request-123'
         );
         
         $this->dto = new ErrorResponseDto(
@@ -46,12 +47,14 @@ class ErrorResponseDtoTest extends TestCase
             'error' => 'Internal server error',
             'error_code' => 'INTERNAL_ERROR',
             'timestamp' => '2025-01-01T12:30:00+00:00',
+            'request_id' => 'error-request-123',
             'data' => [
                 'request' => [
                     'method' => 'POST',
                     'path' => '/api/error',
                     'client_ip' => '10.0.0.1',
-                    'timestamp' => '2025-01-01 12:30:00'
+                    'timestamp' => '2025-01-01 12:30:00',
+                    'request_id' => 'error-request-123'
                 ]
             ]
         ];

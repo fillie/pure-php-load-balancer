@@ -13,18 +13,27 @@ readonly class ErrorResponseDto implements JsonSerializable
         public string $error,
         public ErrorCode $errorCode,
         public string $timestamp,
-        public RequestMeta $requestMeta
+        public RequestMeta $requestMeta,
+        public array $debugContext = []
     ) {
     }
 
     public function jsonSerialize(): array
     {
-        return [
+        $response = [
             'success' => false,
             'error' => $this->error,
             'error_code' => $this->errorCode->value,
             'timestamp' => $this->timestamp,
+            'request_id' => $this->requestMeta->requestId,
             'data' => ['request' => $this->requestMeta->toArray()]
         ];
+
+        // RFC 9457: Include structured debug fields when available
+        if (!empty($this->debugContext)) {
+            $response = array_merge($response, $this->debugContext);
+        }
+
+        return $response;
     }
 }

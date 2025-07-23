@@ -6,36 +6,39 @@ namespace App\Domain\LoadBalancer;
 
 use App\Domain\Exception\NoHealthyServersException;
 use OpenSwoole\Atomic\Long as AtomicLong;
-use OpenSwoole\Lock;
+use OpenSwoole\Atomic;
+use SplFixedArray;
 
 final class RoundRobinLoadBalancer implements LoadBalancerInterface
 {
     private const string ERROR_NO_HEALTHY_SERVERS = 'No healthy servers available';
 
+    private SplFixedArray $serversArray;
+    private AtomicLong $counter;
+    private Atomic $version;
+
     /** @var array<int, string> */
     public array $servers {
         get {
-            return $this->servers;
+            return $this->serversArray->toArray();
         }
     }
-
-    private AtomicLong $counter;
-    private Lock $lock;
 
     /**
      * @param array<int, string> $servers
      */
-    public function __construct(array $servers = [], ?AtomicLong $counter = null, ?Lock $lock = null)
+    public function __construct(array $servers = [], ?AtomicLong $counter = null, ?Atomic $version = null)
     {
-        $this->servers = array_values(array_unique($servers));
+        $uniqueServers = array_values(array_unique($servers));
+        $this->serversArray = SplFixedArray::fromArray($uniqueServers);
         $this->counter = $counter ?? new AtomicLong(0);
-        $this->lock = $lock ?? new Lock();
+        $this->version = $version ?? new Atomic(0);
     }
 
     public function getNextServer(): string
     {
-        $servers = $this->servers;
-        $count = count($servers);
+        $servers = $this->serversArray;
+        $count = $servers->getSize();
 
         if ($count === 0) {
             throw new NoHealthyServersException(self::ERROR_NO_HEALTHY_SERVERS);
@@ -49,33 +52,51 @@ final class RoundRobinLoadBalancer implements LoadBalancerInterface
 
     public function addServer(string $server): void
     {
-        $this->lock->lock();
-        try {
-            if (!in_array($server, $this->servers, true)) {
-                $current = $this->servers;
-                $current[] = $server;
-                $this->servers = $current;
+        do {
+            $currentVersion = $this->version->get();
+            $current = $this->serversArray;
+            $currentArray = $current->toArray();
+            
+            if (in_array($server, $currentArray, true)) {
+                return;
             }
-        } finally {
-            $this->lock->unlock();
-        }
+            
+            $newArray = $currentArray;
+            $newArray[] = $server;
+            $newServers = SplFixedArray::fromArray($newArray);
+            
+        } while (!$this->compareAndSwapServers($currentVersion, $newServers));
     }
 
     public function removeServer(string $server): void
     {
-        $this->lock->lock();
-        try {
-            $current = $this->servers;
-            $key = array_search($server, $current, true);
+        do {
+            $currentVersion = $this->version->get();
+            $current = $this->serversArray;
+            $currentArray = $current->toArray();
+            
+            $key = array_search($server, $currentArray, true);
             if ($key === false) {
                 return;
             }
+            
+            unset($currentArray[$key]);
+            $newArray = array_values($currentArray);
+            $newServers = SplFixedArray::fromArray($newArray);
+            
+        } while (!$this->compareAndSwapServers($currentVersion, $newServers));
+    }
 
-            unset($current[$key]);
-            $this->servers = array_values($current);
-        } finally {
-            $this->lock->unlock();
+    private function compareAndSwapServers(int $expectedVersion, SplFixedArray $newServers): bool
+    {
+        $newVersion = $expectedVersion + 1;
+        
+        if ($this->version->cmpset($expectedVersion, $newVersion)) {
+            $this->serversArray = $newServers;
+            return true;
         }
+        
+        return false;
     }
 
 }
