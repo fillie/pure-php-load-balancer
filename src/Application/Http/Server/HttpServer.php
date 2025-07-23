@@ -10,7 +10,6 @@ use App\Infrastructure\Config\Config;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Http\Server;
-use Psr\Log\LoggerInterface;
 
 final class HttpServer implements ServerInterface
 {

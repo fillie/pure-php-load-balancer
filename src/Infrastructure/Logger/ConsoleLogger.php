@@ -29,7 +29,7 @@ class ConsoleLogger extends AbstractLogger
         if (isset($context['exception']) && $context['exception'] instanceof \Throwable) {
             $exception = $context['exception'];
             $formattedMessage .= sprintf(
-                " [%s: %s in %s:%d]",
+                ' [%s: %s in %s:%d]',
                 get_class($exception),
                 $exception->getMessage(),
                 $exception->getFile(),
