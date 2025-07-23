@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-use App\Clock\ClockInterface;
-use App\Clock\SystemClock;
-use App\Config\Config;
-use App\Http\ResponseBuilder;
-use App\LoadBalancer\LoadBalancerInterface;
-use App\Server\RequestHandler;
-use App\Server\ServerEventHandler;
-use App\Server\ServerLogger;
-use App\LoadBalancer\RoundRobinLoadBalancer;
-use App\Logger\ConsoleLogger;
-use App\Server\ServerInterface;
-use App\Server\HttpServer;
+use App\Application\Http\Server\HttpServer;
+use App\Application\Http\Server\RequestHandler;
+use App\Application\Http\Server\ServerEventHandler;
+use App\Application\Http\Server\ServerInterface;
+use App\Application\Http\Server\ServerLogger;
+use App\Domain\LoadBalancer\LoadBalancerInterface;
+use App\Domain\LoadBalancer\RoundRobinLoadBalancer;
+use App\Infrastructure\Clock\ClockInterface;
+use App\Infrastructure\Clock\SystemClock;
+use App\Infrastructure\Config\Config;
+use App\Infrastructure\Logger\ConsoleLogger;
+use App\Support\ResponseBuilder;
 use Psr\Log\LoggerInterface;
 
 return function (): array {

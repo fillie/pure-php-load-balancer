@@ -46,4 +46,4 @@ RUN echo '#!/bin/bash\ncomposer install --no-interaction --optimize-autoloader -
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Start with watchexec monitoring src directory with debounce
-CMD ["watchexec", "-r", "-w", "src", "-e", "php", "--debounce", "2000", "--", "php", "src/Server.php"]
+CMD ["watchexec", "-r", "-w", "src", "-e", "php", "--debounce", "2000", "--", "php", "bin/server.php"]
