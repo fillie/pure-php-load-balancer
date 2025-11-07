@@ -1,6 +1,8 @@
+**Note:** Don't actually use this, this is intended to be nothing more than a personal deep dive into Load Balancers and OpenSwoole.
+
 # PHP Load Balancer
 
-A high-performance, production-ready PHP load balancer built with OpenSwoole and PHP-DI, featuring clean architecture, comprehensive security, and extensive testing.
+A high-performance, PHP load balancer built with OpenSwoole and PHP-DI, featuring clean architecture, comprehensive security, and extensive testing.
 
 ## Features
 
